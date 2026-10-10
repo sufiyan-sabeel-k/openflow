@@ -35,7 +35,7 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-se
 <div class="mb-4">
 <h1 class="text-2xl font-extrabold tracking-tight">OpenFlow</h1>
 <p class="text-sm text-slate-600">Text to Speech</p>
-<p class="mt-2 text-sm font-medium bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">Static Pages demo. Real voice generation, login, and history need the PHP + MySQL backend — they do not run on GitHub Pages.</p>
+<p id="backend-note" class="mt-2 text-sm font-medium bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">Static Pages demo. Real voice generation, login, and history need the PHP + MySQL backend — they do not run on GitHub Pages.</p>
 </div>
 <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-5" aria-label="Text to speech generator demo">
 <label for="tts-text" class="block text-sm font-semibold mb-1">Your text</label>
@@ -71,6 +71,12 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-se
 </div>
 <button id="btn-generate" type="button" class="mt-5 w-full min-h-[48px] rounded-xl bg-orange-500 text-white font-bold text-base flex items-center justify-center">Generate Voice</button>
 <div id="app-msg" aria-live="polite" class="hidden mt-3 rounded-xl px-4 py-3 text-sm font-medium"></div>
+<div id="result-card" class="hidden mt-5 rounded-xl border border-green-200 bg-green-50/60 p-4" aria-live="polite">
+<p class="text-sm font-bold text-green-900">Your audio is ready</p>
+<p id="result-name" class="text-xs text-slate-600 mt-0.5 break-all"></p>
+<audio id="result-audio" controls preload="none" class="w-full mt-3 max-w-full"></audio>
+<a id="result-download" href="#" download class="mt-3 inline-flex items-center justify-center min-h-[44px] px-4 rounded-xl bg-slate-900 text-white text-sm font-bold w-full sm:w-auto">Download Audio</a>
+</div>
 </section>
 <section class="mt-6" aria-label="My generated audios">
 <h2 class="text-lg font-extrabold tracking-tight">My Generated Audios</h2>
@@ -100,8 +106,38 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-se
 <p class="text-xs text-slate-500 mt-2">OpenFlow static demo — full app requires PHP backend.</p>
 </div>
 </footer>
+<script src="assets/js/config.js"></script>
 <script>
-(function(){'use strict';var ta=document.getElementById('tts-text'),c=document.getElementById('char-count'),b=document.getElementById('btn-generate'),m=document.getElementById('app-msg');ta.addEventListener('input',function(){if(ta.value.length>2500)ta.value=ta.value.slice(0,2500);c.textContent=String(ta.value.length)});b.addEventListener('click',function(){var t=ta.value.trim();m.classList.remove('hidden');if(!t){m.textContent='Please enter some text first.';m.className='mt-3 rounded-xl px-4 py-3 text-sm font-medium bg-red-50 text-red-800 border border-red-200';ta.focus();return}m.textContent='Demo only: voice generation needs the PHP backend (generate.php + Sarvam key). Deploy the PHP app on a PHP host to generate audio.';m.className='mt-3 rounded-xl px-4 py-3 text-sm font-medium bg-amber-50 text-amber-900 border border-amber-200'})})();
+(function(){'use strict';
+var ta=document.getElementById('tts-text'),c=document.getElementById('char-count'),lang=document.getElementById('tts-lang'),voice=document.getElementById('tts-voice'),b=document.getElementById('btn-generate'),m=document.getElementById('app-msg'),note=document.getElementById('backend-note'),card=document.getElementById('result-card'),audio=document.getElementById('result-audio'),rname=document.getElementById('result-name'),dl=document.getElementById('result-download');
+var base=((window.OPENFLOW_API_BASE||'').trim().replace(/\/+$/,''));
+if(base&&note){note.classList.add('hidden')}
+var busy=false;
+function show(t,ok){m.textContent=t;m.classList.remove('hidden');m.className='mt-3 rounded-xl px-4 py-3 text-sm font-medium '+(ok?'bg-green-50 text-green-800 border border-green-200':'bg-red-50 text-red-800 border border-red-200')}
+function hide(){m.classList.add('hidden')}
+function setBusy(v){busy=v;b.disabled=v;b.classList.toggle('opacity-70',v);b.textContent=v?'Generating...':'Generate Voice'}
+ta.addEventListener('input',function(){if(ta.value.length>2500){ta.value=ta.value.slice(0,2500)}c.textContent=String(ta.value.length)});
+b.addEventListener('click',function(){
+if(busy)return;hide();
+var t=ta.value.trim();
+if(!t){show('Please enter some text first.',false);ta.focus();return}
+if(t.length>2500){show('Text must be 2500 characters or less.',false);return}
+if(!base){show('Voice generation needs the PHP backend. Set the API base URL in the site settings after deploying it. Nothing was sent.',false);return}
+setBusy(true);
+fetch(base+'/generate.php',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({text:t,language:lang.value,speaker:voice.value})}).then(function(r){return r.json().then(function(j){return{status:r.status,body:j}}).catch(function(){return{status:r.status,body:{success:false,error:'Invalid server response.'}}})}).then(function(res){
+setBusy(false);var d=res.body||{};
+if(d.success&&d.audio_url){
+var url;try{url=new URL(d.audio_url,base+'/').toString()}catch(e){show('Invalid audio URL from server.',false);return}
+card.classList.remove('hidden');audio.src=url;audio.load();rname.textContent=(d.filename||'audio.wav')+' • '+lang.value+' • '+voice.value;dl.href=url;dl.setAttribute('download',d.filename||'audio.wav');
+show('Your audio is ready. Press play to listen.',true);card.scrollIntoView({behavior:'smooth',block:'nearest'});
+}else{
+if(res.status===401){window.location.href='login.html';return}
+if(res.status===429){show('Too many requests. Please try again later.',false);return}
+show(d.error||'Could not generate audio. Please try again.',false);
+}
+}).catch(function(){setBusy(false);show('Network error. The backend may be unreachable. Please try again.',false)});
+});
+})();
 </script>
 </body>
 </html>
