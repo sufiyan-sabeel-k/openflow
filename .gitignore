@@ -1,0 +1,16 @@
+# OpenFlow static Pages repo — never commit secrets.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*service-account*.json
+config/secrets/*
+.DS_Store
+Thumbs.db
+*.log
+node_modules/
+dist/
+docs/screenshots/*.png
+!docs/screenshots/.gitkeep
