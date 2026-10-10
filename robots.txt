@@ -1,0 +1,5 @@
+# OpenFlow static demo — allows public crawling, points to sitemap. No Disallow: /.
+User-agent: *
+Allow: /
+
+Sitemap: https://sufiyan-sabeel-k.github.io/openflow/sitemap.xml
